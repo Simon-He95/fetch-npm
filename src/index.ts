@@ -16,7 +16,7 @@ import * as tar from 'tar'
  */
 export async function fetchWithPack(options: { name: string, dist?: string }) {
   const { name, dist } = options
-  const url = fileURLToPath(import.meta.url)
+  const url = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url)
   const tempDir = path.join(url, '..', 'temp')
   const tarballPattern = `${name.replace('@', '').replace('/', '-')}-.*.tgz`
   try {
