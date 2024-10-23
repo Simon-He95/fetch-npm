@@ -10,12 +10,13 @@ import * as tar from 'tar'
  *
  * @param options - 获取包的选项。
  * @param options.name - 要获取的 npm 包的名称。
+ * @param options.retry - 可选。重试次数，默认为 1。
  * @param options.dist - 可选。要在包导出中查找的分发目录。
  * @returns 获取包的主文件的内容。
  * @throws 如果包无法获取、解压或读取，将抛出错误。
  */
-export async function fetchWithPack(options: { name: string, dist?: string }) {
-  const { name, dist } = options
+export async function fetchWithPack(options: { name: string, dist?: string, retry?: number }) {
+  let { name, dist, retry = 1 } = options
   const url = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url)
   const tempDir = path.join(url, '..', 'temp')
   const tarballPattern = `${name.replace('@', '').replace('/', '-')}-.*.tgz`
@@ -25,12 +26,23 @@ export async function fetchWithPack(options: { name: string, dist?: string }) {
 
     // Fetch the package tarball using npm pack
     await new Promise((resolve, reject) => {
-      exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
-        if (error)
-          reject(error)
-        else
-          resolve(true)
-      })
+      const fetch = () => {
+        exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
+          if (error) {
+            if (retry > 0) {
+              fetch()
+              retry--
+            }
+            else {
+              reject(error)
+            }
+          }
+          else {
+            resolve(true)
+          }
+        })
+      }
+      fetch()
     })
 
     const [tarballPath] = await fs.readdir(tempDir).then(files => files.filter(file => file.match(tarballPattern)))
