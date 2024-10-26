@@ -26,41 +26,10 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     await fs.mkdir(tempDir, { recursive: true })
 
     // Get the package tarball URL
-    const tarballUrl = await retryAsync(async () => {
-      return new Promise((resolve, reject) => {
-        exec(`npm view ${name} dist.tarball`, (error, stdout) => {
-          if (error) {
-            reject(error)
-          }
-          else {
-            resolve(stdout.trim())
-          }
-        })
-      })
-    }, retry)
-    if (!tarballUrl)
-      return ''
-    const protocol = new URL(tarballUrl).protocol
-    const lib = protocol === 'https:' ? https : http
-    const tgzPath = path.join(tempDir, `${tempFile}.tgz`)
-    await retryAsync(async () => {
-      const tgzFile = createWriteStream(tgzPath)
-
-      return new Promise<void>((resolve, reject) => {
-        lib.get(tarballUrl, (response) => {
-          response.pipe(tgzFile)
-          tgzFile.on('finish', () => {
-            tgzFile.close()
-            resolve()
-          })
-        }).on('error', (error) => {
-          fs.unlink(`${name}.tgz`).catch((error) => {
-            reject(error)
-          })
-          reject(error)
-        })
-      })
-    }, retry)
+    const tgzPath = await Promise.any([
+      downloadWithHttp(name, tempDir, tempFile, retry),
+      downloadWitchPack(name, tempDir, retry),
+    ])
 
     // Extract the tarball
     await tar.x({ file: tgzPath, cwd: tempDir })
@@ -68,7 +37,6 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     // Read package.json to get the main field
     const packageJsonPath = path.join(tempDir, 'package', 'package.json')
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'))
-
     let mainFile = packageJson.main || 'index.js'
     if (dist && !mainFile.includes(dist) && packageJson.exports) {
       for (const key in packageJson.exports) {
@@ -86,7 +54,6 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     // Read the main file content
     const mainFilePath = path.join(tempDir, 'package', mainFile)
     const mainFileContent = await fs.readFile(mainFilePath, 'utf-8')
-
     // Clean up: remove the temporary directory and tarball
     await fs.rm(tempDir, { recursive: true, force: true })
 
@@ -111,4 +78,61 @@ async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> 
       throw error
     }
   }
+}
+
+async function downloadWitchPack(name: string, tempDir: string, retry: number) {
+  await retryAsync(() => {
+    return new Promise((resolve, reject) => {
+      exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
+        if (error) {
+          reject(error)
+        }
+        else {
+          resolve(true)
+        }
+      })
+    })
+  }, retry)
+  const tarballPattern = `${name.replace('@', '').replace('/', '-')}-.*.tgz`
+  const [tarballPath] = await fs.readdir(tempDir).then(files => files.filter(file => file.match(tarballPattern)))
+  return path.join(tempDir, tarballPath)
+}
+
+async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number) {
+  const tarballUrl = await retryAsync(async () => {
+    return new Promise((resolve, reject) => {
+      exec(`npm view ${name} dist.tarball`, (error, stdout) => {
+        if (error) {
+          reject(error)
+        }
+        else {
+          resolve(stdout.trim())
+        }
+      })
+    })
+  }, retry)
+
+  if (!tarballUrl)
+    return ''
+  const protocol = new URL(tarballUrl).protocol
+  const lib = protocol === 'https:' ? https : http
+  const tgzPath = path.join(tempDir, `${tempFile}.tgz`)
+  const tgzFile = createWriteStream(tgzPath)
+
+  await retryAsync(() => new Promise<void>((resolve, reject) => {
+    lib.get(tarballUrl, (response) => {
+      response.pipe(tgzFile)
+      tgzFile.on('finish', () => {
+        tgzFile.close()
+        resolve()
+      })
+    }).on('error', (error) => {
+      fs.unlink(tgzPath).catch((error) => {
+        reject(error)
+      })
+      reject(error)
+    })
+  }), retry)
+
+  return tgzPath
 }

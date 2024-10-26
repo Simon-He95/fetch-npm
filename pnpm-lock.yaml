@@ -20,9 +20,6 @@ importers:
       eslint:
         specifier: ^9.10.0
         version: 9.10.0(jiti@2.3.3)
-      jiti:
-        specifier: ^2.3.3
-        version: 2.3.3
       lint-staged:
         specifier: ^13.3.0
         version: 13.3.0
@@ -3877,7 +3874,8 @@ snapshots:
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
 
-  jiti@2.3.3: {}
+  jiti@2.3.3:
+    optional: true
 
   joycon@3.0.1: {}
 
