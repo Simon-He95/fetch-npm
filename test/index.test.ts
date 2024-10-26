@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { fetchWithPack } from '../src'
+import { fetchAndExtractPackage } from '../src'
 
 describe('should', () => {
   it('exported', async () => {
-    const res = await fetchWithPack({
+    const res = await fetchAndExtractPackage({
       name: '@common-intellisense/vuetify3',
       retry: 5,
       dist: 'index.cjs',
