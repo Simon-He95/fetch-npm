@@ -25,6 +25,7 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     await requestAuth(path.join(url, '..'))
 
     // Create temporary directory
+
     await fs.mkdir(tempDir, { recursive: true })
 
     // Get the package tarball URL
@@ -33,8 +34,13 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
       downloadWitchPack(name, tempDir, retry),
     ])
 
+    // eslint-disable-next-line no-console
+    console.log('download tgz success!')
     // Extract the tarball
     await tar.x({ file: tgzPath, cwd: tempDir })
+
+    // eslint-disable-next-line no-console
+    console.log('extract success!')
 
     // Read package.json to get the main field
     const packageJsonPath = path.join(tempDir, 'package', 'package.json')
