@@ -22,6 +22,8 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
   const url = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url)
   const tempDir = path.join(url, '..', tempFile)
   try {
+    await requestAuth(path.join(url, '..'))
+
     // Create temporary directory
     await fs.mkdir(tempDir, { recursive: true })
 
@@ -85,6 +87,7 @@ async function downloadWitchPack(name: string, tempDir: string, retry: number) {
     return new Promise((resolve, reject) => {
       exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
         if (error) {
+          console.error(error)
           reject(error)
         }
         else {
@@ -135,4 +138,8 @@ async function downloadWithHttp(name: string, tempDir: string, tempFile: string,
   }), retry)
 
   return tgzPath
+}
+
+function requestAuth(tempDir: string) {
+  return fs.chmod(tempDir, 0o777)
 }
