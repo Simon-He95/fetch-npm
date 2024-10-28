@@ -3,7 +3,6 @@ import { createWriteStream, existsSync, promises as fsp } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
-import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import * as tar from 'tar'
 /**
@@ -28,9 +27,17 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     // 为了兼容低版本 npm，需要 package.json, 这里把外层的 package.json copy 一份到当前位置
     // 判断当前位置是否有 package.json, 如果无从外层 copy 进来
     const commonIntellisensePackageJsonPath = path.join(url, '..', 'package.json')
-    const distPackageJsonPath = process.env.VITEST ? path.join(tempDir, '../../', 'package.json') : path.join(tempDir, 'package.json')
-    if (!existsSync(distPackageJsonPath)) {
-      await fsp.copyFile(commonIntellisensePackageJsonPath, distPackageJsonPath)
+    const distPackageJsonPath = path.join(commonIntellisensePackageJsonPath, '..', 'package.json')
+    if (!existsSync(commonIntellisensePackageJsonPath)) {
+      if (!existsSync(distPackageJsonPath)) {
+        await fsp.writeFile(commonIntellisensePackageJsonPath, JSON.stringify({
+          name: 'temp',
+          version: '1.0.0',
+        }), 'utf-8')
+      }
+      else {
+        await fsp.copyFile(commonIntellisensePackageJsonPath, distPackageJsonPath)
+      }
     }
     // Create temporary directory
     await fsp.mkdir(tempDir, { recursive: true })
