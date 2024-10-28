@@ -1,8 +1,9 @@
 import { exec } from 'node:child_process'
-import { createWriteStream, promises as fs } from 'node:fs'
+import { createWriteStream, existsSync, promises as fsp } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import * as tar from 'tar'
 /**
@@ -24,9 +25,15 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
   try {
     await requestAuth(path.join(url, '..'))
 
+    // 为了兼容低版本 npm，需要 package.json, 这里把外层的 package.json copy 一份到当前位置
+    // 判断当前位置是否有 package.json, 如果无从外层 copy 进来
+    const commonIntellisensePackageJsonPath = path.join(url, '..', 'package.json')
+    const distPackageJsonPath = process.env.VITEST ? path.join(tempDir, '../../', 'package.json') : path.join(tempDir, 'package.json')
+    if (!existsSync(distPackageJsonPath)) {
+      await fsp.copyFile(commonIntellisensePackageJsonPath, distPackageJsonPath)
+    }
     // Create temporary directory
-
-    await fs.mkdir(tempDir, { recursive: true })
+    await fsp.mkdir(tempDir, { recursive: true })
 
     // Get the package tarball URL
     const tgzPath = await Promise.any([
@@ -44,7 +51,7 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
 
     // Read package.json to get the main field
     const packageJsonPath = path.join(tempDir, 'package', 'package.json')
-    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'))
+    const packageJson = JSON.parse(await fsp.readFile(packageJsonPath, 'utf-8'))
     let mainFile = packageJson.main || 'index.js'
     if (dist && !mainFile.includes(dist) && packageJson.exports) {
       for (const key in packageJson.exports) {
@@ -61,15 +68,15 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     }
     // Read the main file content
     const mainFilePath = path.join(tempDir, 'package', mainFile)
-    const mainFileContent = await fs.readFile(mainFilePath, 'utf-8')
+    const mainFileContent = await fsp.readFile(mainFilePath, 'utf-8')
     // Clean up: remove the temporary directory and tarball
-    await fs.rm(tempDir, { recursive: true, force: true })
+    await fsp.rm(tempDir, { recursive: true, force: true })
 
     return mainFileContent
   }
   catch (error) {
     // Clean up in case of error
-    await fs.rm(tempDir, { recursive: true, force: true })
+    await fsp.rm(tempDir, { recursive: true, force: true })
     throw error
   }
 }
@@ -103,7 +110,7 @@ async function downloadWitchPack(name: string, tempDir: string, retry: number) {
     })
   }, retry)
   const tarballPattern = `${name.replace('@', '').replace('/', '-')}-.*.tgz`
-  const [tarballPath] = await fs.readdir(tempDir).then(files => files.filter(file => file.match(tarballPattern)))
+  const [tarballPath] = await fsp.readdir(tempDir).then(files => files.filter(file => file.match(tarballPattern)))
   return path.join(tempDir, tarballPath)
 }
 
@@ -136,7 +143,7 @@ async function downloadWithHttp(name: string, tempDir: string, tempFile: string,
         resolve()
       })
     }).on('error', (error) => {
-      fs.unlink(tgzPath).catch((error) => {
+      fsp.unlink(tgzPath).catch((error) => {
         reject(error)
       })
       reject(error)
@@ -147,5 +154,5 @@ async function downloadWithHttp(name: string, tempDir: string, tempFile: string,
 }
 
 function requestAuth(tempDir: string) {
-  return fs.chmod(tempDir, 0o777)
+  return fsp.chmod(tempDir, 0o777)
 }
