@@ -18,6 +18,7 @@ import * as tar from 'tar'
  * @throws 如果包无法获取、解压或读取，将抛出错误。
  */
 export async function fetchAndExtractPackage(options: { name: string, dist?: string, retry?: number }) {
+  const loggerPrefix = '[fetch-npm]:'
   const { name, dist, retry = 1 } = options
   const tempFile = name.split('/').join('-')
   const url = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url)
@@ -44,12 +45,14 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     ])
 
     // eslint-disable-next-line no-console
-    console.log('download tgz success!')
+    console.log(`${loggerPrefix} download tgz success!`)
+    // eslint-disable-next-line no-console
+    console.log(`${loggerPrefix} tgzPath: ${tgzPath}\ntempDir: ${tempDir}`)
     // Extract the tarball
     await tar.x({ file: tgzPath, cwd: tempDir })
 
     // eslint-disable-next-line no-console
-    console.log('extract success!')
+    console.log(`${loggerPrefix} extract success!`)
 
     // Read package.json to get the main field
     const packageJsonPath = path.join(tempDir, 'package', 'package.json')
@@ -70,6 +73,8 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     }
     // Read the main file content
     const mainFilePath = path.join(tempDir, 'package', mainFile)
+    // eslint-disable-next-line no-console
+    console.log(`${loggerPrefix} mainFilePath: ${mainFilePath}`)
     const mainFileContent = await fsp.readFile(mainFilePath, 'utf-8')
     // Clean up: remove the temporary directory and tarball
     await fsp.rm(tempDir, { recursive: true, force: true })
