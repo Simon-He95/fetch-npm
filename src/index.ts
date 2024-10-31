@@ -5,6 +5,7 @@ import https from 'node:https'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import JSON5 from 'json5'
 import * as tar from 'tar'
 /**
  * 使用 `npm view` 获取一个 npm 包可下载链接，下载后解压读取 `package.json` 以获取 main 字段，
@@ -50,6 +51,7 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     // Get the package tarball URL
     const tgzPath = await Promise.any([
       downloadWithHttp(name, tempDir, tempFile, retry, logger),
+      downloadWithNpmHttp(name, tempDir, tempFile, retry, logger),
       downloadWitchPack(name, tempDir, retry, logger),
     ])
 
@@ -130,7 +132,7 @@ async function downloadWitchPack(name: string, tempDir: string, retry: number, l
   return path.join(tempDir, tarballPath)
 }
 
-async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
+async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
   const tarballUrl = await retryAsync(async () => {
     return new Promise((resolve, reject) => {
       exec(`npm view ${name} dist.tarball`, (error, stdout) => {
@@ -168,6 +170,89 @@ async function downloadWithHttp(name: string, tempDir: string, tempFile: string,
   }), retry)
 
   return tgzPath
+}
+
+async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
+  const tarballUrl = await Promise.any([
+    retryAsync(() => getTarballUrlFromRegistry(name), retry),
+    retryAsync(() => getTarballUrlFromYarn(name), retry),
+    retryAsync(() => getTarballUrlFromTencent(name), retry),
+  ]).catch((error) => {
+    logger.error(`[fetch-npm]: Failed to fetch tarball URL from all sources: ${error}`)
+    throw error
+  })
+
+  if (!tarballUrl)
+    return ''
+  const protocol = new URL(tarballUrl).protocol
+  const lib = protocol === 'https:' ? https : http
+  const tgzPath = path.join(tempDir, `${tempFile}.tgz`)
+  const tgzFile = createWriteStream(tgzPath)
+
+  await retryAsync(() => new Promise<void>((resolve, reject) => {
+    lib.get(tarballUrl, (response) => {
+      response.pipe(tgzFile)
+      tgzFile.on('finish', () => {
+        tgzFile.close()
+        resolve()
+      })
+    }).on('error', (error) => {
+      fsp.unlink(tgzPath).catch((error) => {
+        reject(error)
+      })
+      reject(error)
+    })
+  }), retry)
+
+  return tgzPath
+}
+
+async function getTarballUrlFromRegistry(name: string): Promise<string> {
+  const registryUrl = `https://registry.npmjs.org/${name.replace('/', '%2F')}`
+  const data: Uint8Array[] = []
+  await new Promise((resolve, reject) => {
+    https.get(registryUrl, (response) => {
+      response.on('data', chunk => data.push(chunk))
+      response.on('end', resolve)
+      response.on('error', reject)
+    })
+  })
+
+  const metadata = JSON.parse(data.toString())
+  const version = metadata['dist-tags'].latest
+  return metadata.versions[version].dist.tarball
+}
+
+async function getTarballUrlFromYarn(name: string): Promise<string> {
+  const registryUrl = `https://registry.yarnpkg.com/${name.replace('/', '%2F')}`
+  const data: Uint8Array[] = []
+  await new Promise((resolve, reject) => {
+    https.get(registryUrl, (response) => {
+      response.on('data', chunk => data.push(chunk))
+      response.on('end', resolve)
+      response.on('error', reject)
+    })
+  })
+
+  const metadata = JSON5.parse(data.toString())
+  const version = metadata['dist-tags'].latest
+  return metadata.versions[version].dist.tarball
+}
+
+async function getTarballUrlFromTencent(name: string): Promise<string> {
+  const registryUrl = `https://mirrors.cloud.tencent.com/npm/${name.replace('/', '%2F')}`
+  const data: Uint8Array[] = []
+  await new Promise((resolve, reject) => {
+    https.get(registryUrl, (response) => {
+      response.on('data', chunk => data.push(chunk))
+      response.on('end', resolve)
+      response.on('error', reject)
+    })
+  })
+
+  const metadata = JSON5.parse(data.toString())
+  const version = metadata['dist-tags'].latest
+  return metadata.versions[version].dist.tarball
 }
 
 function requestAuth(tempDir: string) {
