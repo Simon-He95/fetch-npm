@@ -14,12 +14,21 @@ import * as tar from 'tar'
  * @param options.name - 要获取的 npm 包的名称。
  * @param options.retry - 可选。重试次数，默认为 1。
  * @param options.dist - 可选。要在包导出中查找的分发目录。
+ * @param options.logger - 可选。在 vscode 插件中输出日志。
  * @returns 获取包的主文件的内容。
  * @throws 如果包无法获取、解压或读取，将抛出错误。
  */
-export async function fetchAndExtractPackage(options: { name: string, dist?: string, retry?: number }) {
+export async function fetchAndExtractPackage(options: { name: string, dist?: string, retry?: number, logger?: any }) {
   const loggerPrefix = '[fetch-npm]:'
-  const { name, dist, retry = 1 } = options
+  const { name, dist, retry = 1, logger = {
+    info: (msg: string) => {
+      // eslint-disable-next-line no-console
+      console.log(msg)
+    },
+    error: (err: string) => {
+      console.error(err)
+    },
+  } } = options
   const tempFile = name.split('/').join('-')
   const url = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url)
   const tempDir = path.join(url, '..', tempFile)
@@ -40,19 +49,16 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
 
     // Get the package tarball URL
     const tgzPath = await Promise.any([
-      downloadWithHttp(name, tempDir, tempFile, retry),
-      downloadWitchPack(name, tempDir, retry),
+      downloadWithHttp(name, tempDir, tempFile, retry, logger),
+      downloadWitchPack(name, tempDir, retry, logger),
     ])
 
-    // eslint-disable-next-line no-console
-    console.log(`${loggerPrefix} download tgz success!`)
-    // eslint-disable-next-line no-console
-    console.log(`${loggerPrefix} tgzPath: ${tgzPath}\ntempDir: ${tempDir}`)
+    logger.info(`${loggerPrefix} download tgz success!`)
+    logger.info(`${loggerPrefix} tgzPath: ${tgzPath}\ntempDir: ${tempDir}`)
     // Extract the tarball
     await tar.x({ file: tgzPath, cwd: tempDir })
 
-    // eslint-disable-next-line no-console
-    console.log(`${loggerPrefix} extract success!`)
+    logger.info(`${loggerPrefix} extract success!`)
 
     // Read package.json to get the main field
     const packageJsonPath = path.join(tempDir, 'package', 'package.json')
@@ -73,8 +79,8 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     }
     // Read the main file content
     const mainFilePath = path.join(tempDir, 'package', mainFile)
-    // eslint-disable-next-line no-console
-    console.log(`${loggerPrefix} mainFilePath: ${mainFilePath}`)
+
+    logger.info(`${loggerPrefix} mainFilePath: ${mainFilePath}`)
     const mainFileContent = await fsp.readFile(mainFilePath, 'utf-8')
     // Clean up: remove the temporary directory and tarball
     await fsp.rm(tempDir, { recursive: true, force: true })
@@ -105,12 +111,12 @@ async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> 
   }
 }
 
-async function downloadWitchPack(name: string, tempDir: string, retry: number) {
+async function downloadWitchPack(name: string, tempDir: string, retry: number, logger: any) {
   await retryAsync(() => {
     return new Promise((resolve, reject) => {
       exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
         if (error) {
-          console.error(error)
+          logger.error(error)
           reject(error)
         }
         else {
@@ -124,11 +130,12 @@ async function downloadWitchPack(name: string, tempDir: string, retry: number) {
   return path.join(tempDir, tarballPath)
 }
 
-async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number) {
+async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
   const tarballUrl = await retryAsync(async () => {
     return new Promise((resolve, reject) => {
       exec(`npm view ${name} dist.tarball`, (error, stdout) => {
         if (error) {
+          logger.error(error)
           reject(error)
         }
         else {
