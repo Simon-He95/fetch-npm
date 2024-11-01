@@ -33,6 +33,7 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
   const tempFile = name.split('/').join('-')
   const url = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url)
   const tempDir = path.join(url, '..', tempFile)
+
   try {
     await requestAuth(path.join(url, '..'))
 
@@ -49,7 +50,7 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     await fsp.mkdir(tempDir, { recursive: true })
 
     // Get the package tarball URL
-    const tgzPath = await Promise.any([
+    const tgzPath = await cancellablePromiseAny([
       downloadWithHttp(name, tempDir, tempFile, retry, logger),
       downloadWithNpmHttp(name, tempDir, tempFile, retry, logger),
       downloadWitchPack(name, tempDir, retry, logger),
@@ -81,8 +82,8 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
     }
     // Read the main file content
     const mainFilePath = path.join(tempDir, 'package', mainFile)
-
     logger.info(`${loggerPrefix} mainFilePath: ${mainFilePath}`)
+
     const mainFileContent = await fsp.readFile(mainFilePath, 'utf-8')
     // Clean up: remove the temporary directory and tarball
     await fsp.rm(tempDir, { recursive: true, force: true })
@@ -257,4 +258,68 @@ async function getTarballUrlFromTencent(name: string): Promise<string> {
 
 function requestAuth(tempDir: string) {
   return fsp.chmod(tempDir, 0o777)
+}
+
+function cancellablePromise<T>(promise: Promise<T>, cancel: () => void): { promise: Promise<T>, cancel: () => void } {
+  let isCanceled = false
+
+  const wrappedPromise = new Promise<T>((resolve, reject) => {
+    promise.then(
+      (value) => {
+        if (isCanceled) {
+          reject(new Error('Canceled'))
+        }
+        else {
+          resolve(value)
+        }
+      },
+      (error) => {
+        if (isCanceled) {
+          reject(new Error('Canceled'))
+        }
+        else {
+          reject(error)
+        }
+      },
+    )
+  })
+
+  return {
+    promise: wrappedPromise,
+    cancel: () => {
+      isCanceled = true
+      cancel()
+    },
+  }
+}
+
+async function cancellablePromiseAny<T>(promises: Array<Promise<T>>): Promise<T> {
+  const cancelFunctions: Array<() => void> = []
+  const wrappedPromises = promises.map((promise, index) => {
+    const { promise: wrappedPromise, cancel } = cancellablePromise(promise, () => {
+      cancelFunctions[index] = () => { }
+    })
+    cancelFunctions.push(cancel)
+    return wrappedPromise
+  })
+
+  return new Promise((resolve, reject) => {
+    let resolved = false
+    wrappedPromises.forEach((wrappedPromise) => {
+      wrappedPromise.then(
+        (value) => {
+          if (!resolved) {
+            resolved = true
+            cancelFunctions.forEach(cancel => cancel())
+            resolve(value)
+          }
+        },
+        (error) => {
+          if (!resolved && wrappedPromises.every(p => p.catch(() => false))) {
+            reject(error)
+          }
+        },
+      )
+    })
+  })
 }
