@@ -114,7 +114,7 @@ async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> 
   }
 }
 
-async function downloadWitchPack(name: string, tempDir: string, retry: number, logger: any) {
+export async function downloadWitchPack(name: string, tempDir: string, retry: number, logger: any) {
   await retryAsync(() => {
     return new Promise((resolve, reject) => {
       exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
@@ -133,7 +133,7 @@ async function downloadWitchPack(name: string, tempDir: string, retry: number, l
   return path.join(tempDir, tarballPath)
 }
 
-async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
+export async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
   const tarballUrl = await retryAsync(async () => {
     return new Promise((resolve, reject) => {
       exec(`npm view ${name} dist.tarball`, (error, stdout) => {
@@ -166,6 +166,7 @@ async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: stri
       fsp.unlink(tgzPath).catch((error) => {
         reject(error)
       })
+      tgzFile.close()
       reject(error)
     })
   }), retry)
@@ -173,10 +174,10 @@ async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: stri
   return tgzPath
 }
 
-async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
-  const tarballUrl = await Promise.any([
+export async function downloadWithHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
+  const tarballUrl = await cancellablePromiseAny([
     retryAsync(() => getTarballUrlFromRegistry(name), retry),
-    retryAsync(() => getTarballUrlFromYarn(name), retry),
+    // retryAsync(() => getTarballUrlFromYarn(name), retry),
     retryAsync(() => getTarballUrlFromTencent(name), retry),
   ]).catch((error) => {
     logger.error(`[fetch-npm]: Failed to fetch tarball URL from all sources: ${error}`)
@@ -224,7 +225,7 @@ async function getTarballUrlFromRegistry(name: string): Promise<string> {
   return metadata.versions[version].dist.tarball
 }
 
-async function getTarballUrlFromYarn(name: string): Promise<string> {
+export async function getTarballUrlFromYarn(name: string): Promise<string> {
   const registryUrl = `https://registry.yarnpkg.com/${name.replace('/', '%2F')}`
   const data: Uint8Array[] = []
   await new Promise((resolve, reject) => {
