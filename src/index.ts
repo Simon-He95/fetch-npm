@@ -1,4 +1,3 @@
-import { exec } from 'node:child_process'
 import { createWriteStream, existsSync, promises as fsp } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
@@ -6,18 +5,19 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import JSON5 from 'json5'
+import { jsShell } from 'lazy-js-utils/dist/node'
 import * as tar from 'tar'
 /**
- * 使用 `npm view` 获取一个 npm 包可下载链接，下载后解压读取 `package.json` 以获取 main 字段，
- * 读取主文件的内容，然后清理临时文件。
+ * 使用 `npm view` 获取一个 npm 包可下载链接,下载后解压读取 `package.json` 以获取 main 字段,
+ * 读取主文件的内容,然后清理临时文件.
  *
- * @param options - 获取包的选项。
- * @param options.name - 要获取的 npm 包的名称。
- * @param options.retry - 可选。重试次数，默认为 1。
- * @param options.dist - 可选。要在包导出中查找的分发目录。
- * @param options.logger - 可选。在 vscode 插件中输出日志。
- * @returns 获取包的主文件的内容。
- * @throws 如果包无法获取、解压或读取，将抛出错误。
+ * @param options - 获取包的选项.
+ * @param options.name - 要获取的 npm 包的名称.
+ * @param options.retry - 可选.重试次数,默认为 1.
+ * @param options.dist - 可选.要在包导出中查找的分发目录.
+ * @param options.logger - 可选.在 vscode 插件中输出日志.
+ * @returns 获取包的主文件的内容.
+ * @throws 如果包无法获取、解压或读取,将抛出错误.
  */
 export async function fetchAndExtractPackage(options: { name: string, dist?: string, retry?: number, logger?: any }) {
   const loggerPrefix = '[fetch-npm]:'
@@ -37,7 +37,7 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
   try {
     await requestAuth(path.join(url, '..'))
 
-    // 为了兼容低版本 npm，需要 package.json
+    // 为了兼容低版本 npm,需要 package.json
     // 判断当前位置是否有 package.json, 如果无从新建一份
     const distPackageJsonPath = path.join(url, '..', 'package.json')
     if (!existsSync(distPackageJsonPath)) {
@@ -117,15 +117,14 @@ async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> 
 export async function downloadWitchPack(name: string, tempDir: string, retry: number, logger: any) {
   await retryAsync(() => {
     return new Promise((resolve, reject) => {
-      exec(`npm pack ${name} --pack-destination ${tempDir}`, (error) => {
-        if (error) {
-          logger.error(error)
-          reject(error)
-        }
-        else {
-          resolve(true)
-        }
-      })
+      const { result, status } = jsShell(`npm pack ${name} --pack-destination ${tempDir}`, 'pipe')
+      if (status !== 0) {
+        logger.error(result)
+        reject(result)
+      }
+      else {
+        resolve(true)
+      }
     })
   }, retry)
   const tarballPattern = `${name.replace('@', '').replace('/', '-')}-.*.tgz`
@@ -136,15 +135,24 @@ export async function downloadWitchPack(name: string, tempDir: string, retry: nu
 export async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
   const tarballUrl = await retryAsync(async () => {
     return new Promise((resolve, reject) => {
-      exec(`npm view ${name} dist.tarball`, (error, stdout) => {
-        if (error) {
-          logger.error(error)
-          reject(error)
-        }
-        else {
-          resolve(stdout.trim())
-        }
-      })
+      const { result, status } = jsShell(`npm view ${name} dist.tarball`, 'pipe')
+      if (status !== 0) {
+        logger.error(result)
+        reject(result)
+      }
+      else {
+        resolve(result)
+      }
+
+      // exec(`npm view ${name} dist.tarball`, (error, stdout) => {
+      //   if (error) {
+      //     logger.error(error)
+      //     reject(error)
+      //   }
+      //   else {
+      //     resolve(stdout.trim())
+      //   }
+      // })
     })
   }, retry)
 
