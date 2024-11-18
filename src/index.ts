@@ -117,7 +117,7 @@ async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> 
 export async function downloadWitchPack(name: string, tempDir: string, retry: number, logger: any) {
   await retryAsync(() => {
     return new Promise((resolve, reject) => {
-      const { result, status } = jsShell(`npm pack ${name} --pack-destination ${tempDir}`, 'ignore')
+      const { result, status } = jsShell(`npm pack ${name} --pack-destination ${tempDir}`)
       if (status !== 0) {
         logger.error(result)
         reject(result)
@@ -135,7 +135,7 @@ export async function downloadWitchPack(name: string, tempDir: string, retry: nu
 export async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, retry: number, logger: any) {
   const tarballUrl = await retryAsync(async () => {
     return new Promise((resolve, reject) => {
-      const { result, status } = jsShell(`npm view ${name} dist.tarball`, 'ignore')
+      const { result, status } = jsShell(`npm view ${name} dist.tarball`)
       if (status !== 0) {
         logger.error(result)
         reject(result)
