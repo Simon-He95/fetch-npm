@@ -51,8 +51,8 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
 
     // Get the package tarball URL
     const tgzPath = await Promise.any([
-      // downloadWithHttp(name, tempDir, tempFile, retry, logger),
-      // downloadWithNpmHttp(name, tempDir, tempFile, retry, logger),
+      downloadWithHttp(name, tempDir, tempFile, retry, logger),
+      downloadWithNpmHttp(name, tempDir, tempFile, retry, logger),
       downloadWitchPack(name, tempDir, retry, logger),
     ])
 
@@ -143,16 +143,6 @@ export async function downloadWithNpmHttp(name: string, tempDir: string, tempFil
       else {
         resolve(result)
       }
-
-      // exec(`npm view ${name} dist.tarball`, (error, stdout) => {
-      //   if (error) {
-      //     logger.error(error)
-      //     reject(error)
-      //   }
-      //   else {
-      //     resolve(stdout.trim())
-      //   }
-      // })
     })
   }, retry)
 
