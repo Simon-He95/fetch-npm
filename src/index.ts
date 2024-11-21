@@ -55,7 +55,6 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
       downloadWithNpmHttp(name, path.join(tempDir, 'npm'), tempFile, logger),
       downloadWitchPack(name, path.join(tempDir, 'pack'), logger),
     ]), retry) as string
-
     logger.info(`${loggerPrefix} download tgz success!`)
     logger.info(`${loggerPrefix} tgzPath: ${tgzPath}\ntempDir: ${tempDir}`)
     // Extract the tarball
@@ -116,35 +115,26 @@ async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> 
 
 export async function downloadWitchPack(name: string, tempDir: string, logger: any = console) {
   await fsp.mkdir(tempDir, { recursive: true })
-  await new Promise((resolve, reject) => {
-    const { result, status } = jsShell(`npm pack ${name} --pack-destination ${tempDir}`)
-    if (status !== 0) {
-      logger.error(result)
-      reject(result)
-    }
-    else {
-      resolve(true)
-    }
-  })
+  const { result, status } = await jsShell(`npm pack ${name} --pack-destination ${tempDir}`)
+  if (status !== 0) {
+    logger.error(result)
+    return Promise.reject(result)
+  }
   if (name.startsWith('@'))
     name = name.slice(1)
-  const tarballPattern = `${name.replace(/[/@]/g, '-')}.tgz`
+  const tarballPattern = `${name.replace(/[/@]/g, '-')}`
   const [tarballPath] = await fsp.readdir(tempDir).then(files => files.filter(file => file.match(tarballPattern)))
   return path.join(tempDir, tarballPath)
 }
 
 export async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, logger: any = console) {
   await fsp.mkdir(tempDir, { recursive: true })
-  const tarballUrl = await new Promise((resolve, reject) => {
-    const { result, status } = jsShell(`npm view ${name} dist.tarball`)
-    if (status !== 0) {
-      logger.error(result)
-      reject(result)
-    }
-    else {
-      resolve(result)
-    }
-  })
+  const { result, status } = await jsShell(`npm view ${name} dist.tarball`)
+  if (status !== 0) {
+    logger.error(result)
+    return Promise.reject(result)
+  }
+  const tarballUrl = result
 
   if (!tarballUrl)
     return ''

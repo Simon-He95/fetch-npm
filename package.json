@@ -59,7 +59,7 @@
     "eslint": "^9.13.0",
     "json5": "^2.2.3",
     "latest-version": "^9.0.0",
-    "lazy-js-utils": "^0.1.23",
+    "lazy-js-utils": "^0.1.24",
     "lint-staged": "^13.3.0",
     "picocolors": "^1.1.1",
     "prettier": "^2.8.8",
