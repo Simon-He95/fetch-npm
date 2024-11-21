@@ -5,6 +5,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import JSON5 from 'json5'
+import { retryAsync } from 'lazy-js-utils'
 import { jsShell } from 'lazy-js-utils/dist/node'
 import * as tar from 'tar'
 /**
@@ -99,23 +100,11 @@ export async function fetchAndExtractPackage(options: { name: string, dist?: str
   }
 }
 
-async function retryAsync<T>(fn: () => Promise<T>, retries: number): Promise<T> {
-  try {
-    return await fn()
-  }
-  catch (error: any) {
-    if (retries > 0) {
-      return retryAsync(fn, retries - 1)
-    }
-    else {
-      throw error
-    }
-  }
-}
-
 export async function downloadWitchPack(name: string, tempDir: string, logger: any = console) {
   await fsp.mkdir(tempDir, { recursive: true })
-  const { result, status } = await jsShell(`npm pack ${name} --pack-destination ${tempDir}`)
+  const { result, status } = await jsShell(`npm pack ${name} --pack-destination ${tempDir}`, {
+    errorExit: false,
+  })
   if (status !== 0) {
     logger.error(result)
     return Promise.reject(result)
@@ -129,7 +118,9 @@ export async function downloadWitchPack(name: string, tempDir: string, logger: a
 
 export async function downloadWithNpmHttp(name: string, tempDir: string, tempFile: string, logger: any = console) {
   await fsp.mkdir(tempDir, { recursive: true })
-  const { result, status } = await jsShell(`npm view ${name} dist.tarball`)
+  const { result, status } = await jsShell(`npm view ${name} dist.tarball`, {
+    errorExit: false,
+  })
   if (status !== 0) {
     logger.error(result)
     return Promise.reject(result)
@@ -160,17 +151,19 @@ export async function downloadWithNpmHttp(name: string, tempDir: string, tempFil
 
 export async function downloadWithHttp(name: string, tempDir: string, tempFile: string, logger: any = console) {
   await fsp.mkdir(tempDir, { recursive: true })
-  const tarballUrl = await Promise.any([
-    getTarballUrlFromRegistry(name),
-    getTarballUrlFromYarn(name),
-    getTarballUrlFromTencent(name),
-  ]).catch((error) => {
+  let tarballUrl: string
+  try {
+    tarballUrl = await Promise.any([
+      getTarballUrlFromRegistry(name),
+      getTarballUrlFromYarn(name),
+      getTarballUrlFromTencent(name),
+    ])
+  }
+  catch (error) {
     logger.error(`[fetch-npm]: Failed to fetch tarball URL from all sources: ${error}`)
-    throw error
-  })
+    return Promise.reject(error)
+  }
 
-  if (!tarballUrl)
-    return ''
   const protocol = new URL(tarballUrl).protocol
   const lib = protocol === 'https:' ? https : http
   const tgzPath = path.join(tempDir, `${tempFile}.tgz`)
