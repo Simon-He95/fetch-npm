@@ -1,7 +1,7 @@
 {
   "name": "@simon_he/fetch-npm",
   "type": "module",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "packageManager": "pnpm@7.33.7",
   "description": "",
   "author": "Simon He",
