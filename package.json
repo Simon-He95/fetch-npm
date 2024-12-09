@@ -52,14 +52,14 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^3.9.2",
-    "@types/node": "^18.19.64",
+    "@antfu/eslint-config": "^3.11.2",
+    "@types/node": "^18.19.67",
     "bumpp": "^8.2.1",
     "compressing": "^1.10.1",
-    "eslint": "^9.15.0",
+    "eslint": "^9.16.0",
     "json5": "^2.2.3",
     "latest-version": "^9.0.0",
-    "lazy-js-utils": "^0.1.24",
+    "lazy-js-utils": "^0.1.27",
     "lint-staged": "^13.3.0",
     "picocolors": "^1.1.1",
     "prettier": "^2.8.8",
