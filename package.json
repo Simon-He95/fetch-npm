@@ -18,13 +18,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
+      "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     }
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "typesVersions": {
     "*": {
       "*": [
@@ -40,7 +40,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsdown ./src/index.ts --format esm --dts --clean",
+    "build": "tsdown ./src/index.ts --format esm,cjs --dts --clean",
     "dev": "npm run build -- --watch src",
     "format": "prettier --write --cache .",
     "lint": "eslint . --cache",
